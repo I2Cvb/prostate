@@ -1,0 +1,12 @@
+[submodule "third-party/protoclass"]
+	path = third-party/protoclass
+	url = https://github.com/glemaitre/protoclass.git
+[submodule "publications/qcav-2015/presentation"]
+	path = publications/qcav-2015/presentation
+	url = https://github.com/glemaitre/qcav-2015.git
+[submodule "publications/qcav-2015/paper"]
+	path = publications/qcav-2015/paper
+	url = https://github.com/I2Cvb/qcav-2015-paper.git
+[submodule "publications/spie-mi-2015/paper"]
+	path = publications/spie-mi-2015/paper
+	url = https://github.com/I2Cvb/spie_mi_2015_t2w_normalisation_prostate.git
