@@ -48,15 +48,15 @@ patient_sizes = np.load('../../data/t2w/patient_sizes.npy')
 print '---> Data loaded'
 fig, axes = plt.subplots(nrows=5, ncols=2)
 # Make the classification for each patient
-nb = 100
+nb = 200
 global_hist_t2w = np.zeros((nb,))
 global_norm_gaussian = np.zeros((nb,))
 global_norm_rician = np.zeros((nb,))
-global_norm_fda = np.zeros((100,))
+global_norm_fda = np.zeros((nb,))
 global_hist_t2w_cap = np.zeros((nb,))
 global_norm_gaussian_cap = np.zeros((nb,))
 global_norm_rician_cap = np.zeros((nb,))
-global_norm_fda_cap = np.zeros((100,))
+global_norm_fda_cap = np.zeros((nb,))
 
 # Make the list of the different histogram
 list_raw = []
@@ -175,7 +175,7 @@ for pt in xrange(len(patient_sizes)):
 
     ##### FDA SRSF NORMALISATION #####
     # Compute the histogram for the whole data
-    nb_bins = 100
+    nb_bins = nb
     hist, bin_edges = np.histogram(data_norm_fda[start_idx : end_idx], bins=nb_bins, range=(-1., 1.), density=True)
     hist = np.divide(hist, np.sum(hist))
     axes[4, 0].plot(bin_edges[0 : -1], hist)    
@@ -186,7 +186,7 @@ for pt in xrange(len(patient_sizes)):
     nmi_fda.append(nmi(data_norm_fda[start_idx : end_idx]))
 
     # Compute the histogram for the cancer data
-    nb_bins = 100
+    nb_bins = nb
     sub_data = data_norm_fda[start_idx : end_idx]
     cap_data = sub_data[np.nonzero(label[start_idx : end_idx] == 1)[0]]
     hist, bin_edges = np.histogram(cap_data, bins=nb_bins, range=(-1., 1.), density=True)
