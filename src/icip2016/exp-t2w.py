@@ -36,6 +36,22 @@ def nmi(data):
     # return the nmi
     return mean_data / (max_data - min_data)
 
+# Define the cumulative cross-sectional variance
+def var_ccs(data):
+    
+    # Create a numpy array from the list
+    arr = np.array(data)
+
+    # Pre-compute the mean curve
+    mean_curve = np.mean(arr, axis=0)
+    
+    # Compute the variance for this curve
+    ccs = np.zeros(mean_curve.shape)
+    for c in arr:
+        ccs += (c - mean_curve) ** 2
+
+    return sum(ccs) / (arr.shape[0] - 1.)
+
 # Load the data file from the numpy npz file
 data_norm_rician = np.load('../../data/t2w/data_norm_rician.npy')
 data_norm_parts = np.load('../../data/t2w/data_norm_parts.npy')
@@ -46,7 +62,7 @@ label = np.load('../../data/t2w/label.npy')
 patient_sizes = np.load('../../data/t2w/patient_sizes.npy')
 
 print '---> Data loaded'
-fig, axes = plt.subplots(nrows=5, ncols=2)
+fig, axes = plt.subplots(nrows=5, ncols=2, figsize=(25, 25))
 # Make the classification for each patient
 nb = 200
 global_hist_t2w = np.zeros((nb,))
@@ -195,8 +211,15 @@ for pt in xrange(len(patient_sizes)):
     global_norm_fda_cap = np.add(global_norm_fda_cap, hist)
     list_fda_cap.append(hist)
 
-print np.min(data_norm_fda)
-print np.max(data_norm_fda)
+print var_ccs(list_raw)
+print var_ccs(list_parts)
+print var_ccs(list_rician)
+print var_ccs(list_fda)
+
+print var_ccs(list_raw_cap)
+print var_ccs(list_parts_cap)
+print var_ccs(list_rician_cap)
+print var_ccs(list_fda_cap)
 
 # Decorate the plot with the proper annotations
 axes[0, 0].set_ylabel('Probabilities')
