@@ -237,3 +237,7 @@ CMakeScripts
 Makefile
 cmake_install.cmake
 install_manifest.txt
+
+# Ignore binary and build
+/build
+/bin
