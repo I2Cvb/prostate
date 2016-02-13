@@ -7,14 +7,14 @@
 pathToBin='../../bin/./resampling_dce_from_t2w';
 
 # Path of the original DCE
-pathOriginalDCE='/data/prostate/original_data/';
-pathOriginalDCEModality='Perfusion/';
+pathOriginalDCE='/data/prostate/original_data/dijon/';
+pathOriginalDCEModality='/Perfusion';
 # Path of the resaved T2W
 pathResavedT2W='/data/prostate/experiments/';
-pathResavedT2WModality='T2W/';
+pathResavedT2WModality='/T2W';
 # Path to save the resampled data
 pathToSaveDCE='/data/prostate/experiments/';
-pathToSaveDCEModality= 'DCE/';
+pathToSaveDCEModality='/DCE';
 
 #####################################################################
 
@@ -32,10 +32,9 @@ echo " "
 # For all the patients
 for patient in $pathOriginalDCE*/; do
     
-    # Show which patient will be processed
-    echo 
-    echo "Patient folder to be processed: "
-    echo $patient
-    echo 
+    # Save the patient directory name
+    patient_folder=$(basename "$patient")
+
+    $pathToBin "$pathResavedT2W$patient_folder$pathResavedT2WModality" "$pathOriginalDCE$patient_folder$pathOriginalDCEModality" "$pathToSaveDCE$patient_folder$pathToSaveDCEModality"
 
 done

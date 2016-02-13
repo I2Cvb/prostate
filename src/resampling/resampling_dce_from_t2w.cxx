@@ -26,8 +26,6 @@
 
 #include "itkExtractImageFilter.h"
  
-#include <itksys/SystemTools.hxx>
- 
 #if ITK_VERSION_MAJOR >= 4
 #include "gdcmUIDGenerator.h"
 #else
@@ -263,9 +261,6 @@ int main( int argc, char* argv[] )
 
 	    // Copy the input dictionary to the output dictionary
 	    CopyDictionary(*dce_dict, *out_dict);
-
-	    // String that will be used to change each necessary field of the output dictionary
-	    itksys_ios::ostringstream value;
 	    
 	    // We need to affect manually
 	    // - (0010|0010) - Patient Name
@@ -275,8 +270,8 @@ int main( int argc, char* argv[] )
 	    // - (0028|0107) - Largest Image Pixel Value
 
 	    // Patient Name
-	    value.str("Anonym^Patient");
-	    itk::EncapsulateMetaData<std::string>(*out_dict,"0010|0010", value.str());
+	    std::string patient_name = "Anonym^Patient";
+	    itk::EncapsulateMetaData<std::string>(*out_dict,"0010|0010", patient_name);
 
 	    // SOP Instance UID
 	    gdcm::UIDGenerator sopuid;
@@ -284,8 +279,8 @@ int main( int argc, char* argv[] )
 	    itk::EncapsulateMetaData<std::string>(*out_dict,"0008|0018", sopInstanceUID);
 
 	    // Attending Physician's Name
-	    value.str("Anonym^Physician");
-	    itk::EncapsulateMetaData<std::string>(*out_dict,"0008|1050", value.str());
+	    std::string physician_name = "Anonym^Physician";
+	    itk::EncapsulateMetaData<std::string>(*out_dict,"0008|1050", physician_name);
 
 	    // Smallest Image Pixel Value
 	    std::string s_pix_val = std::to_string(statistic_dce_slice->GetMinimum());
@@ -308,9 +303,8 @@ int main( int argc, char* argv[] )
 	    // - (0028|1051) - Window Width
 	    
 	    // Image Number
-	    value.str("");
-	    value << nSlice + 1;
-	    itk::EncapsulateMetaData<std::string>(*out_dict,"0020|0013", value.str());
+	    std::string image_number = std::to_string(nSlice + 1);
+	    itk::EncapsulateMetaData<std::string>(*out_dict,"0020|0013", image_number);
 
 	    // Create an vector with all the tag to recopy
 	    std::vector<std::string> tags_t2w_out = {"0020|0032" , "0020|0037)", "0020|0052", "0020|1041", 
