@@ -2,7 +2,7 @@ include_directories(${PROJECT_SOURCE_DIR}/)
 
 include_directories(${external_includes})
 
-set(app_programs resampling)
+set(app_programs resampling_dce_from_t2w)
 
 foreach(app ${app_programs})
     add_executable(${app} ${app}.cxx)
