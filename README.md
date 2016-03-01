@@ -1,7 +1,13 @@
 Prostate cancer research
 ========================
 
-This branch is the integration branch associated to Issue #4. 
+**Integration branch for Issue #6**
+
+The goal is to segment design a caffe experiment where:
+  - instad of volumes dataset, we use 2D slices dataset
+  - select one patient for testing (actually a single slice of its volume where the tissues would be segmented)
+  - use all the modalites (upsampled) and plug them at the first layer of the CNN-dl
+  - 
 
 
 Folder structure
