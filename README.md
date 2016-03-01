@@ -1,6 +1,8 @@
 Prostate cancer research
 ========================
 
+This branch is the integration branch associated to Issue #4. 
+
 
 Folder structure
 ----------------
