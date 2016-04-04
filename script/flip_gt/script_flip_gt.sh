@@ -4,10 +4,18 @@
 # Define the different path
 
 # Define the path to resample the original DCE image using the resaved T2W images
-pathToScript='script_flip_gt.py';
+pathToScript='../../bin/./flip_gt';
 
 # Path of the original DCE
 pathOriginal='/data/prostate/experiments/';
+
+path_gt='/GT'
+path_gt_inv='GT_inv'
+
+path_prostate='/prostate'
+path_cg='/cg'
+path_pz='/pz'
+path_cap='/cap'
 
 #####################################################################
 
@@ -28,6 +36,16 @@ for patient in $pathOriginal*/; do
     # Save the patient directory name
     patient_folder=$(basename "$patient")
 
-    python $pathToScript "$pathOriginal$patient_folder"
-    
+    # For the prostate GT
+    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_prostate" "$pathOriginal$patient_folder$path_gt_inv$path_prostate"
+
+    # For the cg
+    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_cg" "$pathOriginal$patient_folder$path_gt_inv$path_cg"
+
+    # For the pz
+    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_pz" "$pathOriginal$patient_folder$path_gt_inv$path_pz"
+
+    # For the cap
+    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_cap" "$pathOriginal$patient_folder$path_gt_inv$path_cap"
+
 done

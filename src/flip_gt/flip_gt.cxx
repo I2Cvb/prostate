@@ -2,6 +2,8 @@
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImageSeriesReader.h"
 #include "itkImageSeriesWriter.h"
+#include "itkFixedArray.h"
+#include "itkFlipImageFilter.h"
 #include <vector>
 #include "itksys/SystemTools.hxx"
 int main( int argc, char* argv[] )
@@ -49,6 +51,20 @@ int main( int argc, char* argv[] )
       return EXIT_FAILURE;
   }
 
+  // Flip the image and setup to flip around z
+  itk::FixedArray<bool, 3> flipAxes;
+  flipAxes[0] = false;
+  flipAxes[1] = false;
+  flipAxes[2] = true;
+
+  typedef itk::FlipImageFilter <ImageType>
+      FlipImageFilterType;
+ 
+  FlipImageFilterType::Pointer flipFilter
+      = FlipImageFilterType::New ();
+  flipFilter->SetInput(reader->GetOutput());
+  flipFilter->SetFlipAxes(flipAxes);
+
   const char * outputDirectory = argv[2];
   itksys::SystemTools::MakeDirectory( outputDirectory );
   typedef signed short    OutputPixelType;
@@ -57,7 +73,7 @@ int main( int argc, char* argv[] )
   typedef itk::ImageSeriesWriter<
       ImageType, Image2DType >  SeriesWriterType;
   SeriesWriterType::Pointer seriesWriter = SeriesWriterType::New();
-  seriesWriter->SetInput( reader->GetOutput() );
+  seriesWriter->SetInput( flipFilter->GetOutput() );
   seriesWriter->SetImageIO( gdcmIO );
   namesGenerator->SetOutputDirectory( outputDirectory );
   seriesWriter->SetFileNames( namesGenerator->GetOutputFileNames() );
