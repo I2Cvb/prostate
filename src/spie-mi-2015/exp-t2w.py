@@ -13,6 +13,8 @@ from sklearn.metrics import roc_auc_score
 # Confusion matrix
 from sklearn.metrics import confusion_matrix
 
+from scipy.io import loadmat
+
 import seaborn as sns
 sns.set_style("whitegrid")
 sns.set_context("poster")
@@ -20,13 +22,13 @@ sns.set_context("poster")
 # Define the function to compute the Normalised Mean Intensity
 def nmi(data):
     # get the minimum 
-    #min_data = np.min(data)
-    min_data = -1.
+    min_data = np.min(data)
+    #min_data = -1.
     print 'mini: {}'.format(min_data)
 
     # get the maximum
-    #max_data = np.max(data)
-    max_data = 1.
+    max_data = np.max(data)
+    #max_data = 1.
     print 'maxi: {}'.format(max_data)
 
     # find the mean
@@ -60,6 +62,8 @@ data_norm_fda = np.load('../../data/t2w/data_fdasrsf_norm.npy')
 data_t2w_norm = np.load('../../data/t2w/data_raw_norm.npy')
 label = np.load('../../data/t2w/label.npy')
 patient_sizes = np.load('../../data/t2w/patient_sizes.npy')
+region_label = loadmat('../../data/mat/all_voxels.mat')
+region_label = np.squeeze(region_label['data'][:, 0])
 
 print '---> Data loaded'
 fig, axes = plt.subplots(nrows=5, ncols=2, figsize=(25, 25))
@@ -91,6 +95,17 @@ nmi_raw = []
 nmi_gaussian = []
 nmi_rician = []
 nmi_fda = []
+nmi_raw_cap = []
+nmi_gaussian_cap = []
+nmi_rician_cap = []
+nmi_fda_cap = []
+nmi_parts=[]
+nmi_parts_cap=[]
+nmi_raw_pz = []
+nmi_gaussian_pz = []
+nmi_rician_pz = []
+nmi_fda_pz = []
+nmi_parts_pz=[]
 for pt in xrange(len(patient_sizes)):
     
     # Find the index of the current patients
@@ -103,6 +118,7 @@ for pt in xrange(len(patient_sizes)):
 
     ##### RAW DATA #####
     # Compute the histogram for the whole data
+    print 'raw'
     nb_bins = nb
     hist, bin_edges = np.histogram(data_t2w_norm[start_idx : end_idx], bins=nb_bins, range=(-1., 1.), density=True)
     hist = np.divide(hist, np.sum(hist))
@@ -123,7 +139,14 @@ for pt in xrange(len(patient_sizes)):
     global_hist_t2w_cap = np.add(global_hist_t2w_cap, hist)
     list_raw_cap.append(hist)
 
+    nmi_raw_cap.append(nmi(cap_data))
+
+    idx_int = np.bitwise_and(region_label[start_idx : end_idx],
+                             np.bitwise_not(label[start_idx : end_idx]))
+    nmi_raw_pz.append(nmi(sub_data[np.nonzero(idx_int)]))
+
     ##### GAUSSIAN NORMALISATION #####
+    print 'gaussian'
     # Compute the histogram for the whole data
     nb_bins = nb
     hist, bin_edges = np.histogram(data_norm_gaussian[start_idx : end_idx], bins=nb_bins, range=(-1., 1.), density=True)
@@ -145,7 +168,14 @@ for pt in xrange(len(patient_sizes)):
     global_norm_gaussian_cap = np.add(global_norm_gaussian_cap, hist)
     list_gaussian_cap.append(hist)
 
+    nmi_gaussian_cap.append(nmi(cap_data))
+
+    idx_int = np.bitwise_and(region_label[start_idx : end_idx],
+                             np.bitwise_not(label[start_idx : end_idx]))
+    nmi_gaussian_pz.append(nmi(sub_data[np.nonzero(idx_int)]))
+
     ##### PARTS NORMALISATION #####
+    print 'piecewise linear'
     # Compute the histogram for the whole data
     nb_bins = nb
     hist, bin_edges = np.histogram(data_norm_parts[start_idx : end_idx], bins=nb_bins, range=(-1., 1.), density=True)
@@ -155,7 +185,7 @@ for pt in xrange(len(patient_sizes)):
     list_parts.append(hist)
 
     # Compute the NMI for the parts data
-    # nmi_parts.append(nmi(data_norm_parts[start_idx : end_idx]))
+    nmi_parts.append(nmi(data_norm_parts[start_idx : end_idx]))
 
     # Compute the histogram for the cancer data
     nb_bins = nb
@@ -167,7 +197,14 @@ for pt in xrange(len(patient_sizes)):
     #global_norm_parts_cap = np.add(global_norm_parts_cap, hist)
     list_parts_cap.append(hist)
 
+    nmi_parts_cap.append(nmi(cap_data))
+
+    idx_int = np.bitwise_and(region_label[start_idx : end_idx],
+                             np.bitwise_not(label[start_idx : end_idx]))
+    nmi_parts_pz.append(nmi(sub_data[np.nonzero(idx_int)]))
+
     ##### RICIAN NORMALISATION #####
+    print 'rician'
     # Compute the histogram for the whole data
     nb_bins = nb
     hist, bin_edges = np.histogram(data_norm_rician[start_idx : end_idx], bins=nb_bins, range=(-1., 1.), density=True)
@@ -189,7 +226,14 @@ for pt in xrange(len(patient_sizes)):
     global_norm_rician_cap = np.add(global_norm_rician_cap, hist)
     list_rician_cap.append(hist)
 
+    nmi_rician_cap.append(nmi(cap_data))
+
+    idx_int = np.bitwise_and(region_label[start_idx : end_idx],
+                             np.bitwise_not(label[start_idx : end_idx]))
+    nmi_rician_pz.append(nmi(sub_data[np.nonzero(idx_int)]))
+
     ##### FDA SRSF NORMALISATION #####
+    print 'fda'
     # Compute the histogram for the whole data
     nb_bins = nb
     hist, bin_edges = np.histogram(data_norm_fda[start_idx : end_idx], bins=nb_bins, range=(-1., 1.), density=True)
@@ -211,123 +255,129 @@ for pt in xrange(len(patient_sizes)):
     global_norm_fda_cap = np.add(global_norm_fda_cap, hist)
     list_fda_cap.append(hist)
 
-print var_ccs(list_raw)
-print var_ccs(list_parts)
-print var_ccs(list_rician)
-print var_ccs(list_fda)
+    nmi_fda_cap.append(nmi(cap_data))
 
-print var_ccs(list_raw_cap)
-print var_ccs(list_parts_cap)
-print var_ccs(list_rician_cap)
-print var_ccs(list_fda_cap)
+    idx_int = np.bitwise_and(region_label[start_idx : end_idx],
+                             np.bitwise_not(label[start_idx : end_idx]))
+    nmi_fda_pz.append(nmi(sub_data[np.nonzero(idx_int)]))
 
-# Decorate the plot with the proper annotations
-axes[0, 0].set_ylabel('Probabilities')
-axes[0, 0].set_title('PDFs for raw data - Full prostate')
+# print var_ccs(list_raw)
+# print var_ccs(list_parts)
+# print var_ccs(list_rician)
+# print var_ccs(list_fda)
 
-axes[0, 1].set_ylabel('Probabilities')
-axes[0, 1].set_title('PDFs for raw data - CaP')
+# print var_ccs(list_raw_cap)
+# print var_ccs(list_parts_cap)
+# print var_ccs(list_rician_cap)
+# print var_ccs(list_fda_cap)
 
-axes[1, 0].set_ylabel('Probabilities')
-axes[1, 0].set_title('PDFs for Gaussian normalization - Full prostate')
+# # Decorate the plot with the proper annotations
+# axes[0, 0].set_ylabel('Probabilities')
+# axes[0, 0].set_title('PDFs for raw data - Full prostate')
 
-axes[1, 1].set_ylabel('Probabilities')
-axes[1, 1].set_title('PDFs for Gaussian normalization - CaP')
+# axes[0, 1].set_ylabel('Probabilities')
+# axes[0, 1].set_title('PDFs for raw data - CaP')
 
-axes[2, 0].set_ylabel('Probabilities')
-axes[2, 0].set_title('PDFs for linear normalization by parts - Full prostate')
+# axes[1, 0].set_ylabel('Probabilities')
+# axes[1, 0].set_title('PDFs for Gaussian normalization - Full prostate')
 
-axes[2, 1].set_ylabel('Probabilities')
-axes[2, 1].set_title('PDFs for linear normalization by parts data - CaP')
+# axes[1, 1].set_ylabel('Probabilities')
+# axes[1, 1].set_title('PDFs for Gaussian normalization - CaP')
 
-axes[3, 0].set_ylabel('Probabilities')
-axes[3, 0].set_title('PDFs for Rician normalization data - Full prostate')
+# axes[2, 0].set_ylabel('Probabilities')
+# axes[2, 0].set_title('PDFs for linear normalization by parts - Full prostate')
 
-axes[3, 1].set_ylabel('Probabilities')
-axes[3, 1].set_title('PDFs for Rician normalization data - CaP')
+# axes[2, 1].set_ylabel('Probabilities')
+# axes[2, 1].set_title('PDFs for linear normalization by parts data - CaP')
 
-axes[4, 0].set_ylabel('Probabilities')
-axes[4, 0].set_title('PDFs for FDA SRSF normalization data - Full prostate')
+# axes[3, 0].set_ylabel('Probabilities')
+# axes[3, 0].set_title('PDFs for Rician normalization data - Full prostate')
 
-axes[4, 1].set_ylabel('Probabilities')
-axes[4, 1].set_title('PDFs for FDA SRSF normalization data - CaP')
+# axes[3, 1].set_ylabel('Probabilities')
+# axes[3, 1].set_title('PDFs for Rician normalization data - CaP')
 
-sns.plt.savefig('qualitative.png')
+# axes[4, 0].set_ylabel('Probabilities')
+# axes[4, 0].set_title('PDFs for FDA SRSF normalization data - Full prostate')
 
-# Compute the pca decomposition
-from sklearn.decomposition import PCA
+# axes[4, 1].set_ylabel('Probabilities')
+# axes[4, 1].set_title('PDFs for FDA SRSF normalization data - CaP')
 
-# Make the decomposition
-### Initialize the pca object
-pca_raw = PCA()
-pca_gaussian = PCA()
-pca_rician = PCA()
-pca_parts = PCA()
-pca_fda = PCA()
-pca_raw_cap = PCA()
-pca_gaussian_cap = PCA()
-pca_rician_cap = PCA()
-pca_parts_cap = PCA()
-pca_fda_cap = PCA()
+# sns.plt.savefig('qualitative.png')
 
-### Make the decomposition
-pca_raw.fit(np.array(list_raw).T)
-pca_gaussian.fit(np.array(list_gaussian).T)
-pca_rician.fit(np.array(list_rician).T)
-pca_parts.fit(np.array(list_parts).T)
-pca_fda.fit(np.array(list_fda).T)
-pca_raw_cap.fit(np.array(list_raw_cap).T)
-pca_gaussian_cap.fit(np.array(list_gaussian_cap).T)
-pca_rician_cap.fit(np.array(list_rician_cap).T)
-pca_parts_cap.fit(np.array(list_parts_cap).T)
-pca_fda_cap.fit(np.array(list_fda_cap).T)
+# # Compute the pca decomposition
+# from sklearn.decomposition import PCA
 
-# Plot the accumulated eigenvalues
-from scipy.integrate import simps
+# # Make the decomposition
+# ### Initialize the pca object
+# pca_raw = PCA()
+# pca_gaussian = PCA()
+# pca_rician = PCA()
+# pca_parts = PCA()
+# pca_fda = PCA()
+# pca_raw_cap = PCA()
+# pca_gaussian_cap = PCA()
+# pca_rician_cap = PCA()
+# pca_parts_cap = PCA()
+# pca_fda_cap = PCA()
 
-# Full prostate
-plt.figure()
-plt.plot(np.cumsum(pca_raw.explained_variance_ratio_), marker='o',
-         label='Raw data - AUC=' + 
-         str(simps(np.cumsum(pca_raw.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_gaussian.explained_variance_ratio_), marker='^',
-         label='Gaussian normalization - AUC=' + 
-         str(simps(np.cumsum(pca_gaussian.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_parts.explained_variance_ratio_), marker='s',
-         label='Linear normalization by parts - AUC=' + 
-         str(simps(np.cumsum(pca_parts.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_rician.explained_variance_ratio_), marker='*',
-         label='Rician normalization - AUC=' + 
-         str(simps(np.cumsum(pca_rician.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_fda.explained_variance_ratio_), marker='*',
-         label='FDA SRSF normalization - AUC=' + 
-         str(simps(np.cumsum(pca_fda.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.legend(loc='lower right')
-plt.xlabel('# eigenvalues')
-plt.ylabel('CDF of the eigenvalues')
-sns.plt.savefig('quantitative_1.png')
+# ### Make the decomposition
+# pca_raw.fit(np.array(list_raw).T)
+# pca_gaussian.fit(np.array(list_gaussian).T)
+# pca_rician.fit(np.array(list_rician).T)
+# pca_parts.fit(np.array(list_parts).T)
+# pca_fda.fit(np.array(list_fda).T)
+# pca_raw_cap.fit(np.array(list_raw_cap).T)
+# pca_gaussian_cap.fit(np.array(list_gaussian_cap).T)
+# pca_rician_cap.fit(np.array(list_rician_cap).T)
+# pca_parts_cap.fit(np.array(list_parts_cap).T)
+# pca_fda_cap.fit(np.array(list_fda_cap).T)
 
-# CaP only
-plt.figure()
-plt.plot(np.cumsum(pca_raw_cap.explained_variance_ratio_), marker='o',
-         label='Raw data - AUC=' + 
-         str(simps(np.cumsum(pca_raw_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_gaussian_cap.explained_variance_ratio_), marker='^',
-         label='Gaussian normalization - AUC=' + 
-         str(simps(np.cumsum(pca_gaussian_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_parts_cap.explained_variance_ratio_), marker='s',
-         label='Linear normalization by parts - AUC=' + 
-         str(simps(np.cumsum(pca_parts_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_rician_cap.explained_variance_ratio_), marker='*',
-         label='Rician normalization - AUC=' + 
-         str(simps(np.cumsum(pca_rician_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.plot(np.cumsum(pca_fda_cap.explained_variance_ratio_), marker='*',
-         label='FDA SRSF normalization - AUC=' + 
-         str(simps(np.cumsum(pca_fda_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
-plt.legend(loc='lower right')
-plt.xlabel('# eigenvalues')
-plt.ylabel('CDF of the eigenvalues')
-sns.plt.savefig('quantitative_2.png')
+# # Plot the accumulated eigenvalues
+# from scipy.integrate import simps
+
+# # Full prostate
+# plt.figure()
+# plt.plot(np.cumsum(pca_raw.explained_variance_ratio_), marker='o',
+#          label='Raw data - AUC=' + 
+#          str(simps(np.cumsum(pca_raw.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_gaussian.explained_variance_ratio_), marker='^',
+#          label='Gaussian normalization - AUC=' + 
+#          str(simps(np.cumsum(pca_gaussian.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_parts.explained_variance_ratio_), marker='s',
+#          label='Linear normalization by parts - AUC=' + 
+#          str(simps(np.cumsum(pca_parts.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_rician.explained_variance_ratio_), marker='*',
+#          label='Rician normalization - AUC=' + 
+#          str(simps(np.cumsum(pca_rician.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_fda.explained_variance_ratio_), marker='*',
+#          label='FDA SRSF normalization - AUC=' + 
+#          str(simps(np.cumsum(pca_fda.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.legend(loc='lower right')
+# plt.xlabel('# eigenvalues')
+# plt.ylabel('CDF of the eigenvalues')
+# sns.plt.savefig('quantitative_1.png')
+
+# # CaP only
+# plt.figure()
+# plt.plot(np.cumsum(pca_raw_cap.explained_variance_ratio_), marker='o',
+#          label='Raw data - AUC=' + 
+#          str(simps(np.cumsum(pca_raw_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_gaussian_cap.explained_variance_ratio_), marker='^',
+#          label='Gaussian normalization - AUC=' + 
+#          str(simps(np.cumsum(pca_gaussian_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_parts_cap.explained_variance_ratio_), marker='s',
+#          label='Linear normalization by parts - AUC=' + 
+#          str(simps(np.cumsum(pca_parts_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_rician_cap.explained_variance_ratio_), marker='*',
+#          label='Rician normalization - AUC=' + 
+#          str(simps(np.cumsum(pca_rician_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.plot(np.cumsum(pca_fda_cap.explained_variance_ratio_), marker='*',
+#          label='FDA SRSF normalization - AUC=' + 
+#          str(simps(np.cumsum(pca_fda_cap.explained_variance_ratio_),np.linspace(0, 1, 17))))
+# plt.legend(loc='lower right')
+# plt.xlabel('# eigenvalues')
+# plt.ylabel('CDF of the eigenvalues')
+# sns.plt.savefig('quantitative_2.png')
 
 # # Normalise the histogram
 # global_hist_t2w = np.divide(global_hist_t2w, float(len(patient_sizes)))
@@ -372,4 +422,4 @@ from scipy.stats import entropy
 # axes[0, 0].plot(bin_edges[0 : -1], global_hist_t2w)
 # axes[0, 1].plot(bin_edges[0 : -1], global_norm_gaussian)
 # axes[0, 2].plot(bin_edges[0 : -1], global_norm_rician)
-plt.show()
+#plt.show()
