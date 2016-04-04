@@ -1,3 +1,4 @@
+#!/usr/bin/env
 """Script to flip the DICOM ground-truth."""
 
 import sys
