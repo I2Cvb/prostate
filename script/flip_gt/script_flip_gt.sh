@@ -10,7 +10,7 @@ pathToScript='../../bin/./flip_gt';
 pathOriginal='/data/prostate/experiments/';
 
 path_gt='/GT'
-path_gt_inv='GT_inv'
+path_gt_inv='/GT_inv'
 
 path_prostate='/prostate'
 path_cg='/cg'
@@ -37,15 +37,15 @@ for patient in $pathOriginal*/; do
     patient_folder=$(basename "$patient")
 
     # For the prostate GT
-    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_prostate" "$pathOriginal$patient_folder$path_gt_inv$path_prostate"
+    $pathToScript "$pathOriginal$patient_folder$path_gt$path_prostate" "$pathOriginal$patient_folder$path_gt_inv$path_prostate"
 
     # For the cg
-    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_cg" "$pathOriginal$patient_folder$path_gt_inv$path_cg"
+    $pathToScript "$pathOriginal$patient_folder$path_gt$path_cg" "$pathOriginal$patient_folder$path_gt_inv$path_cg"
 
     # For the pz
-    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_pz" "$pathOriginal$patient_folder$path_gt_inv$path_pz"
+    $pathToScript "$pathOriginal$patient_folder$path_gt$path_pz" "$pathOriginal$patient_folder$path_gt_inv$path_pz"
 
     # For the cap
-    echo $pathToScript "$pathOriginal$patient_folder$path_gt$path_cap" "$pathOriginal$patient_folder$path_gt_inv$path_cap"
+    $pathToScript "$pathOriginal$patient_folder$path_gt$path_cap" "$pathOriginal$patient_folder$path_gt_inv$path_cap"
 
 done

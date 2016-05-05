@@ -241,3 +241,5 @@ install_manifest.txt
 # Ignore binary and build
 /build
 /bin
+
+.ipynb_checkpoints
