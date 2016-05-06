@@ -13,3 +13,6 @@
 [submodule "publications/spie-mi-2015/poster"]
 	path = publications/spie-mi-2015/poster
 	url = https://github.com/I2Cvb/spie_mi_2015_t2w_normalisation_prostate_presentation
+[submodule "pipeline/lemaitre-2016-nov"]
+	path = pipeline/lemaitre-2016-nov
+	url = https://github.com/I2Cvb/lemaitre-2016-nov.git
