@@ -76,27 +76,27 @@ def segmentation_aorta(mod, idx_patient):
         # Compute the region property for the maximum enhanced region
         # Compute the label image
         label_img = label(cl_image.astype(int))
-        intensity_img = data[max_idx_img]
+        intensity_img = np.reshape(np.max(data_kmeans, axis=1), (data.shape[1],
+                                                 data.shape[2]))
+        #intensity_img = data[max_idx_img]
 
         region = regionprops(label_img, intensity_img)
 
         # For each region, create a feature vector
         for idx_r, r in enumerate(region):
             # Compute the feature vector
-            if r.eccentricity > .7:
+            if r.eccentricity > .5:
                 label_img[np.nonzero(label_img == idx_r+1)] = 0
                 continue
-            if r.equivalent_diameter < 10 or r.equivalent_diameter > 30:
+            if r.equivalent_diameter < 10 or r.equivalent_diameter > 20:
                 label_img[np.nonzero(label_img == idx_r+1)] = 0
                 continue
-            if r.area < 150 or r.area > 500:
+            if r.area < 100 or r.area > 400:
                 label_img[np.nonzero(label_img == idx_r+1)] = 0
                 continue
             feat_vec = np.hstack((r.eccentricity, r.equivalent_diameter,
                                   r.area, r.max_intensity, r.mean_intensity,
                                   np.ravel(r.moments_hu)))
-
-            print feat_vec
 
             region_feat_vec = np.vstack((region_feat_vec, feat_vec))
             label_gt.append((sl, idx_r))
@@ -104,14 +104,14 @@ def segmentation_aorta(mod, idx_patient):
         all_label_img.append(label_img)
 
     # Cluster the data again with two clusters this time
-    km2 = KMeans(n_clusters=2,
+    km2 = KMeans(n_clusters=4,
                  n_jobs=-1)
     label_region = km2.fit_predict(region_feat_vec)
 
-    for i, l in enumerate(label_region):
+    for i, gt in enumerate(label_gt):
         # get the gt
-        gt = label_gt[i]
-        all_label_img[gt[0]][np.nonzero(all_label_img[gt[0]] == gt[1] + 1)] = l
+        all_label_img[gt[0]][np.nonzero(
+            all_label_img[gt[0]] == gt[1] + 1)] = 1
 
     for sl in range(len(all_label_img)):
         plt.figure()
