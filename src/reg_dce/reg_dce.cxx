@@ -1,29 +1,35 @@
-#include "itkVersion.h" 
+#include <itkVersion.h>
 
-#include "itkImage.h"
-#include "itkStatisticsImageFilter.h"
+#include <itkImage.h>
+#include <itkStatisticsImageFilter.h>
  
-#include "itkGDCMImageIO.h"
-#include "itkGDCMSeriesFileNames.h"
-#include "itkNumericSeriesFileNames.h"
+#include <itkGDCMImageIO.h>
+#include <itkGDCMSeriesFileNames.h>
+#include <itkNumericSeriesFileNames.h>
+#include <gdcmUIDGenerator.h>
+#include <itkNiftiImageIO.h>
  
-#include "itkImageSeriesReader.h"
-#include "itkImageSeriesWriter.h"
+#include <itkImageSeriesReader.h>
+#include <itkImageSeriesWriter.h>
 
-#include "itkCastImageFilter.h"
+#include <itkMattesMutualInformationImageToImageMetric.h>
 
-#include "itkImageRegistrationMethod.h"
-#include "itkBSplineTransform.h"
-#include "itkMutualInformationImageToImageMetric.h"
-#include "itkLBFGSOptimizer.h"
- 
-#include "itkResampleImageFilter.h"
-#include "itkShiftScaleImageFilter.h"
- 
-#include "itkIdentityTransform.h"
-#include "itkLinearInterpolateImageFunction.h"
+#include <itkIdentityTransform.h>
+#include <itkVersorRigid3DTransform.h>
 
-#include "itkExtractImageFilter.h"
+#include <itkLBFGSOptimizer.h>
+#include <itkRegularStepGradientDescentOptimizer.h>
+
+#include <itkMeanSquaresImageToImageMetric.h>
+
+#include <itkRegularStepGradientDescentOptimizer.h>
+
+#include <itkImageRegistrationMethod.h>
+ 
+#include <itkLinearInterpolateImageFunction.h>
+
+#include <itkResampleImageFilter.h>
+#include <itkCastImageFilter.h>
  
 #if ITK_VERSION_MAJOR >= 4
 #include "gdcmUIDGenerator.h"
@@ -38,7 +44,7 @@
 
 // Declare the function to copy DICOM dictionary
 static void CopyDictionary(itk::MetaDataDictionary &fromDict, 
-			       itk::MetaDataDictionary &toDict);
+			   itk::MetaDataDictionary &toDict);
 
 // Function to be used to sort the serie ID
 bool comparisonSerieID(std::string i, std::string j) {
@@ -55,197 +61,202 @@ bool comparisonSerieID(std::string i, std::string j) {
 
 int main( int argc, char* argv[] )
 {
+    ///////////////////////////////////////////////////////////////////////////
+    // Define the image type
+    const unsigned int in_dim = 3; 
+    typedef short signed PixelType;
+    typedef itk::Image< PixelType, in_dim > InImType;
+    typedef itk::ImageSeriesReader< InImType > SeriesReader;
+    typedef itk::ImageFileReader< InImType > FileReader;
 
-    const unsigned int InputDimension = 3;
-    const unsigned int OutputDimension = 2;
+    ///////////////////////////////////////////////////////////////////////////
+    // Define the different transform used
+    typedef double CoordinateRepType;
+    // Auxiliary identity transform.
+    typedef itk::IdentityTransform< double,
+				    in_dim> IdentityTransformType;
+    IdentityTransformType::Pointer identityTransform =
+	IdentityTransformType::New();
+    // Rigid transform
+    typedef itk::VersorRigid3DTransform< double > RigidTransformType;
+    // Define the optimizer
+    typedef itk::RegularStepGradientDescentOptimizer GDOptimizerType;
+
+    // Define the metrics
+    // Mutual Information Metric
+    typedef itk::MattesMutualInformationImageToImageMetric <
+	InImType,
+	InImType > M2MetricType;
+
+    // Interpolation function
+    typedef itk:: LinearInterpolateImageFunction< 
+	InImType,
+	CoordinateRepType > InterpolatorType;
  
-    typedef double PixelType;
- 
-    typedef itk::Image< PixelType, InputDimension >
-	InputImageType;
-    typedef itk::Image< double, InputDimension >
-	ProcessImageType;
-    typedef itk::Image< PixelType, OutputDimension >
-	OutputImageType;
-    typedef itk::ImageSeriesReader< InputImageType >
-	ReaderType;
-    typedef itk::GDCMImageIO
-	ImageIOType;
-    typedef itk::GDCMSeriesFileNames
-	InputNamesGeneratorType;
-    typedef itk::NumericSeriesFileNames
-	OutputNamesGeneratorType;
+    // Registration type
+    typedef itk::ImageRegistrationMethod<
+	InImType,
+	InImType >    RegistrationType;
 
-    // Variable to generate the list of files
-    InputNamesGeneratorType::Pointer dce_filenames_generator =
-	InputNamesGeneratorType::New();
-    dce_filenames_generator->SetInputDirectory(argv[1]);
+    ///////////////////////////////////////////////////////////////////////////
+    // Open all the information about the DCE information
+    itk::GDCMSeriesFileNames::Pointer dce_gen =
+	itk::GDCMSeriesFileNames::New();
+    dce_gen->SetInputDirectory(argv[1]);
 
-    // Check the number of series that are available
-    const itk::SerieUIDContainer& dce_serieuid =
-	dce_filenames_generator->GetSeriesUIDs();
-    std::cout << "The number of series in the DCE acquisition: "
-	      << dce_serieuid.size() << std::endl;
+    // Get the serie UID
+    const itk::SerieUIDContainer& dce_serie_uid = dce_gen->GetSeriesUIDs();
+    // Sort the serie
+    std::sort(dce_serie_uid.begin(), dce_serie_uid.end(), comparisonSerieID);
 
-    // Sort the vector of serie to be in proper order
-    std::sort(dce_serieuid.begin(), dce_serieuid.end(), comparisonSerieID);
+    // Read the serie which will be considered as fixed volume during
+    // the registration
+    const int serie_keep = 9;
+    // Get the corresponding filenames
+    const SeriesReader::FileNamesContainer& dce_fixed_filenames =
+	dce_gen->GetFileNames(dce_serie_uid[serie_keep]);
+    // Get the DICOM information and read the volume
+    itk::GDCMImageIO::Pointer gdcm_dce_fixed = itk::GDCMImageIO::New();
+    SeriesReader::Pointer dce_fixed_vol = SeriesReader::New();
+    dce_fixed_vol->SetImageIO(gdcm_dce_fixed);
+    dce_fixed_vol->SetFileNames(dce_fixed_filenames);
 
-    // We will use the 9th serie of the DCE as fixed volume.
-    // The other volumes will be register to this volume.
-    const int serie_to_keep = 9;
-    const ReaderType::FileNamesContainer& dce_fixed_filenames = 
-	    dce_filenames_generator->GetFileNames(dce_serieuid[serie_to_keep]);
-
-    std::cout << "The filenames of the 9th DCE are:" << std::endl;
-    for(auto it = dce_fixed_filenames.begin(); it != dce_fixed_filenames.end(); ++it)
-	std::cout << *it << std::endl;
-
-    ImageIOType::Pointer gdcm_dce_fixed = ImageIOType::New();
-    ReaderType::Pointer dce_vol_fixed = ReaderType::New();
-    dce_vol_fixed->SetImageIO(gdcm_dce_fixed);
-    dce_vol_fixed->SetFileNames(dce_fixed_filenames);
-    // Try to update to catch up any error
+    // Try to read the volume
     try {
-	dce_vol_fixed->Update();
+	dce_fixed_vol->Update();
     }
-    catch (itk::ExceptionObject &excp) {
-	std::cerr << "Exception thrown while reading the series" << std::endl;
+    catch(itk::ExceptionObject &excp) {
+	std::cerr << "Exception thrown while reading the series"
+		  << std::endl;
 	std::cerr << excp << std::endl;
 	return EXIT_FAILURE;
     }
 
-    std::cout << "" << std::endl;
-    std::cout << "******************************" << std::endl;
-    std::cout << "" << std::endl;
-    std::cout << "Information about the moving DCE volume:" << std::endl;
-    std::cout << "Spacing: " << dce_vol_fixed->GetOutput()->GetSpacing() << std::endl;
-    std::cout << "Origin:" << dce_vol_fixed->GetOutput()->GetOrigin() << std::endl;
-    std::cout << "Direction:" << std::endl << dce_vol_fixed->GetOutput()->GetDirection() << std::endl;
-    std::cout << "Size:" << dce_vol_fixed->GetOutput()->GetLargestPossibleRegion().GetSize() << std::endl;
-    std::cout << "" << std::endl;
-    std::cout << "******************************" << std::endl;
-    std::cout << "" << std::endl;
+    // Now, we have to read all the other series and they will be considered
+    // as moving serie
+    for (unsigned int nSerie = 0; nSerie < dce_serie_uid.size(); ++nSerie) {
+	///////////////////////////////////////////////////////////////////////
+	// Read the moving serie
 
-    unsigned int nFile = 0;
-    for (unsigned int nSerie = 0; nSerie < dce_serieuid.size(); ++nSerie) {
-	// Check that we don't have the fixed serie
-	if (nSerie == serie_to_keep) continue;
-	
-        // Container with the different filenames
-	const ReaderType::FileNamesContainer& dce_moving_filenames = 
-	    dce_filenames_generator->GetFileNames(dce_serieuid[nSerie]);
-      
-	// Reader corresponding to the actual mask volume 
-	ImageIOType::Pointer gdcm_dce_moving = ImageIOType::New();
-	ReaderType::Pointer dce_vol_moving = ReaderType::New();
-	dce_vol_moving->SetImageIO(gdcm_dce_moving);
-        dce_vol_moving->SetFileNames(dce_moving_filenames);
+	// Read the current serie
+	const SeriesReader::FileNamesContainer& dce_moving_filenames = 
+	    dce_gen->GetFileNames(dce_serie_uid[nSerie]);
+
+        // Reader corresponding to the actual mask volume 
+	itk::GDCMImageIO::Pointer gdcm_dce_moving = itk::GDCMImageIO::New();
+	SeriesReader::Pointer dce_moving_vol = SeriesReader::New();
+	dce_moving_vol->SetImageIO(gdcm_dce_moving);
+        dce_moving_vol->SetFileNames(dce_moving_filenames);
 
 	// Try to update to catch up any error
 	try {
-	    dce_vol_moving->Update();
+	    dce_moving_vol->Update();
 	}
-	catch (itk::ExceptionObject &excp) {
+	catch(itk::ExceptionObject &excp) {
 	    std::cerr << "Exception thrown while reading the series"
 		      << std::endl;
 	    std::cerr << excp << std::endl;
 	    return EXIT_FAILURE;
 	}
 
-	std::cout << "" << std::endl;
-	std::cout << "******************************" << std::endl;
-	std::cout << "" << std::endl;
-	std::cout << "Information about the moving DCE volume:" << std::endl;
-	std::cout << "Spacing: " << dce_vol_moving->GetOutput()->GetSpacing() << std::endl;
-	std::cout << "Origin:" << dce_vol_moving->GetOutput()->GetOrigin() << std::endl;
-	std::cout << "Direction:" << std::endl << dce_vol_moving->GetOutput()->GetDirection() << std::endl;
-	std::cout << "Size:" << dce_vol_moving->GetOutput()->GetLargestPossibleRegion().GetSize() << std::endl;
-	std::cout << "" << std::endl;
-	std::cout << "******************************" << std::endl;
-	std::cout << "" << std::endl;
+	// Continue only if the serie is not the fixed one
+	if (nSerie == serie_keep) {
+	    typedef signed short OutputPixelType;
+	    const unsigned int out_dim = 2;
+	    typedef itk::Image< OutputPixelType, out_dim > Image2DType;
+	    typedef itk::ImageSeriesWriter< InImType,
+					    Image2DType >  SeriesWriterType;
 
-	// We have to make the registration of the different image now
-	// Define the parameters for the spline transform
-	const unsigned int SpaceDimension = InputDimension;
-	const unsigned int SplineOrder = 3;
-	typedef double CoordinateRepType;
+	    const char * outputDirectory = argv[2];
+	    itksys::SystemTools::MakeDirectory(outputDirectory);
+	    SeriesWriterType::Pointer seriesWriter = SeriesWriterType::New();
+	    gdcm_dce_moving->KeepOriginalUIDOn();
+	    seriesWriter->SetInput(dce_moving_vol->GetOutput());
+	    seriesWriter->SetImageIO(gdcm_dce_moving);
+	    dce_gen->SetOutputDirectory(outputDirectory);
+	    seriesWriter->SetFileNames(dce_gen->GetOutputFileNames());
+	    seriesWriter->SetMetaDataDictionaryArray(
+		dce_moving_vol->GetMetaDataDictionaryArray() );
+	    try
+	    {
+		seriesWriter->Update();
+	    }
+	    catch(itk::ExceptionObject & excp)
+	    {
+		std::cerr << "Exception thrown while writing the series "
+			  << std::endl;
+		std::cerr << excp << std::endl;
+		return EXIT_FAILURE;
+	    }
 
-	// Define the transform type
-	typedef itk::BSplineTransform<CoordinateRepType,
-				      SpaceDimension,
-				      SplineOrder> TransformType;
-	// Define the optimizer
-	typedef itk::LBFGSOptimizer OptimizerType;
-	// Define the metric type
-	typedef itk::MutualInformationImageToImageMetric<InputImageType,
-							 InputImageType> 
-	    MetricType;
-	// Define the interpolation type
-	typedef itk::LinearInterpolateImageFunction<InputImageType,
-						    double> InterpolatorType;
-	// Define the registration type
-	typedef itk::ImageRegistrationMethod<InputImageType,
-					     InputImageType>
-	    RegistrationType;
+	    continue;
+	}
 
-	// Create new objects
-	MetricType::Pointer metric = MetricType::New();
-	OptimizerType::Pointer optimizer = OptimizerType::New();
+
+	///////////////////////////////////////////////////////////////////////
+	// Find the rigid transformation to apply
+	RigidTransformType::Pointer rigid_transform =
+	    RigidTransformType::New();
+
+	// Define the registration
+	M2MetricType::Pointer metric = M2MetricType::New();
+	GDOptimizerType::Pointer gd_optimizer = GDOptimizerType::New();
 	InterpolatorType::Pointer interpolator = InterpolatorType::New();
 	RegistrationType::Pointer registration = RegistrationType::New();
-
 	registration->SetMetric(metric);
-	registration->SetOptimizer(optimizer);
+	registration->SetOptimizer(gd_optimizer);
 	registration->SetInterpolator(interpolator);
 
-	TransformType::Pointer transform = TransformType::New();
-	registration->SetTransform(transform);
+	// Set-up the input images
+	registration->SetFixedImage(dce_fixed_vol->GetOutput());
+	registration->SetMovingImage(dce_moving_vol->GetOutput());
 
-	// Setup the registration
-	registration->SetFixedImage(dce_vol_fixed->GetOutput());
-	registration->SetMovingImage(dce_vol_moving->GetOutput());
+	// Initialise the transform
+	registration->SetFixedImageRegion(
+	    dce_fixed_vol->GetOutput()->GetLargestPossibleRegion());
+	registration->SetTransform(rigid_transform);
 
-	// Define the parameters for the spline registration
-	TransformType::PhysicalDimensionsType fixedPhysicalDimensions;
-	TransformType::MeshSizeType meshSize;
-	for(unsigned int i=0; i < InputDimension; ++i)
-	{
-	    fixedPhysicalDimensions[i] = dce_vol_fixed->GetOutput()->GetSpacing()[i] *
-		static_cast<double>(
-		    dce_vol_fixed->GetOutput()->GetLargestPossibleRegion().GetSize()[i] - 1 );
-	}
-	unsigned int numberOfGridNodesInOneDimension = 10;
-	meshSize.Fill(numberOfGridNodesInOneDimension - SplineOrder);
-	transform->SetTransformDomainOrigin(dce_vol_fixed->GetOutput()->GetOrigin());
-	transform->SetTransformDomainPhysicalDimensions(fixedPhysicalDimensions);
-	transform->SetTransformDomainMeshSize(meshSize);
-	transform->SetTransformDomainDirection(dce_vol_fixed->GetOutput()->GetDirection());
+	// Initialize with default parameters
+	typedef RegistrationType::ParametersType ParametersType;
+	ParametersType init_params(rigid_transform->GetNumberOfParameters());
+	init_params[0] = 0.;
+	init_params[1] = 0.;
+	init_params[2] = 0.;
+	init_params[3] = 0.;
+	init_params[4] = 0.;
+	init_params[5] = 0.;
+	registration->SetInitialTransformParameters(init_params);
 
-	typedef TransformType::ParametersType ParametersType;
-	const unsigned int numberOfParameters =
-	    transform->GetNumberOfParameters();
-	ParametersType parameters( numberOfParameters );
-	parameters.Fill( 0.0 );
-	transform->SetParameters( parameters );
- 
-	//  We now pass the parameters of the current transform as the initial
-	//  parameters to be used when the registration process starts.
- 
-	registration->SetInitialTransformParameters(transform->GetParameters());
- 
-	std::cout << "Intial Parameters = " << std::endl;
-	std::cout << transform->GetParameters() << std::endl;
- 
-	//  Next we set the parameters of the LBFGS Optimizer.
- 
-	optimizer->SetGradientConvergenceTolerance( 0.05 );
-	optimizer->SetLineSearchAccuracy( 0.9 );
-	optimizer->SetDefaultStepLength( .5 );
-	optimizer->TraceOn();
-	optimizer->SetMaximumNumberOfFunctionEvaluations( 1000 );
- 
-	std::cout << std::endl << "Starting Registration" << std::endl;
- 
+	//  Define optimizer normaliztion to compensate for different dynamic
+	// range of rotations and translations.
+	typedef GDOptimizerType::ScalesType OptimizerScalesType;
+	OptimizerScalesType optimizer_scales(
+	    rigid_transform->GetNumberOfParameters());
+	const double translation_scale = 1.0 / 1000.0;
+	optimizer_scales[0] = 1.0;
+	optimizer_scales[1] = 1.0;
+	optimizer_scales[2] = 1.0;
+	optimizer_scales[3] = translation_scale;
+	optimizer_scales[4] = translation_scale;
+	optimizer_scales[5] = translation_scale;
+	gd_optimizer->SetScales(optimizer_scales);
+
+	gd_optimizer->SetMaximumStepLength(0.2000);
+	gd_optimizer->SetMinimumStepLength(0.0001);
+	gd_optimizer->SetNumberOfIterations(1000);
+	gd_optimizer->MaximizeOn();
+
+	InImType::RegionType fixedImageRegion =
+	    dce_fixed_vol->GetOutput()->GetLargestPossibleRegion();
+	const unsigned int numberOfPixels =
+	    fixedImageRegion.GetNumberOfPixels();
+	const unsigned int numberOfSamples =
+	    static_cast< unsigned int >(numberOfPixels * 0.002); 
+	metric->SetNumberOfSpatialSamples(numberOfSamples);
+	metric->SetNumberOfThreads(24);
+	metric->SetNumberOfHistogramBins(30);
+
+	std::cout << "Starting Rigid Registration " << std::endl;
 	try
 	{
 	    registration->Update();
@@ -253,19 +264,63 @@ int main( int argc, char* argv[] )
 		      << registration->GetOptimizer()->GetStopConditionDescription()
 		      << std::endl;
 	}
-	catch( itk::ExceptionObject & err )
+	catch(itk::ExceptionObject & err)
 	{
 	    std::cerr << "ExceptionObject caught !" << std::endl;
 	    std::cerr << err << std::endl;
 	    return EXIT_FAILURE;
 	}
- 
-	OptimizerType::ParametersType finalParameters =
+	std::cout << "Rigid Registration completed" << std::endl;
+
+	GDOptimizerType::ParametersType finalParameters =
 	    registration->GetLastTransformParameters();
- 
 	std::cout << "Last Transform Parameters" << std::endl;
 	std::cout << finalParameters << std::endl;
- 
-	transform->SetParameters( finalParameters );
+	rigid_transform->SetParameters(finalParameters);
+
+	// Resample the data with the transform found previously
+	typedef itk::ResampleImageFilter< InImType,
+					  InImType > ResampleFilterType;
+	ResampleFilterType::Pointer resample = ResampleFilterType::New();
+	resample->SetTransform(rigid_transform);
+	resample->SetInput(dce_moving_vol->GetOutput());
+	resample->SetSize(
+	    dce_moving_vol->GetOutput()->GetLargestPossibleRegion().GetSize());
+	resample->SetInterpolator(interpolator);
+	resample->SetOutputOrigin(dce_moving_vol->GetOutput()->GetOrigin());
+	resample->SetOutputSpacing(dce_moving_vol->GetOutput()->GetSpacing());
+	resample->SetOutputDirection(
+	    dce_moving_vol->GetOutput()->GetDirection());
+	resample->SetDefaultPixelValue(0);
+
+	typedef signed short OutputPixelType;
+	const unsigned int out_dim = 2;
+	typedef itk::Image< OutputPixelType, out_dim > Image2DType;
+	typedef itk::ImageSeriesWriter< InImType,
+					Image2DType >  SeriesWriterType;
+
+	const char * outputDirectory = argv[2];
+	itksys::SystemTools::MakeDirectory(outputDirectory);
+	SeriesWriterType::Pointer seriesWriter = SeriesWriterType::New();
+	gdcm_dce_moving->KeepOriginalUIDOn();
+	seriesWriter->SetInput(resample->GetOutput());
+	seriesWriter->SetImageIO(gdcm_dce_moving);
+	dce_gen->SetOutputDirectory(outputDirectory);
+	seriesWriter->SetFileNames(dce_gen->GetOutputFileNames());
+	seriesWriter->SetMetaDataDictionaryArray(
+	    dce_moving_vol->GetMetaDataDictionaryArray() );
+	try
+	{
+	    seriesWriter->Update();
+	}
+	catch(itk::ExceptionObject & excp)
+	{
+	    std::cerr << "Exception thrown while writing the series "
+		      << std::endl;
+	    std::cerr << excp << std::endl;
+	    return EXIT_FAILURE;
+	}
     }
+
+    return EXIT_SUCCESS;
 }

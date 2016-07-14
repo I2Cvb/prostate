@@ -28,8 +28,6 @@
 
 #include <itkResampleImageFilter.h>
 #include <itkCastImageFilter.h>
-#include <itkSquaredDifferenceImageFilter.h>
-#include <itkSqrtImageFilter.h>
 
 #include <algorithm>
 #include <string>
@@ -80,7 +78,6 @@ int main( int argc, char* argv[] )
 				   spline_order > DeformableTransformType;
 
     // Define the optimizer
-    typedef itk::LBFGSOptimizer LBFGSOptimizerType;
     typedef itk::RegularStepGradientDescentOptimizer GDOptimizerType;
 
     // Define the metrics
