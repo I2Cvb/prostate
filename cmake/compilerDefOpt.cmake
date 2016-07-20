@@ -2,7 +2,7 @@
 #add_definitions(-DEIGEN_DONT_VECTORIZE -DEIGEN_DONT_ALIGN)
 
 ###### Compiler options
-set (CMAKE_CXX_COMPILER             "/usr/local/sbin/g++")
+# set (CMAKE_CXX_COMPILER             "/usr/local/sbin/g++")
 set (CMAKE_CXX_FLAGS                "-std=c++11 -Wextra -Wall -Wno-delete-non-virtual-dtor -Werror=return-type -fpermissive")
 set (CMAKE_CXX_FLAGS_DEBUG          "-g -O0 -DDEBUG")
 set (CMAKE_CXX_FLAGS_RELEASE        "-O3")
