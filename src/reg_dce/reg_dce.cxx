@@ -253,7 +253,7 @@ int main( int argc, char* argv[] )
 	const unsigned int numberOfSamples =
 	    static_cast< unsigned int >(numberOfPixels * 0.002); 
 	metric->SetNumberOfSpatialSamples(numberOfSamples);
-	metric->SetNumberOfThreads(24);
+	metric->SetNumberOfThreads(8);
 	metric->SetNumberOfHistogramBins(30);
 
 	std::cout << "Starting Rigid Registration " << std::endl;
