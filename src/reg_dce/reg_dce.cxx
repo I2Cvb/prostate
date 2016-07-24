@@ -12,19 +12,20 @@
 #include <itkImageSeriesReader.h>
 #include <itkImageSeriesWriter.h>
 
-#include <itkMattesMutualInformationImageToImageMetric.h>
+#include <itkMattesMutualInformationImageToImageMetricv4.h>
 
 #include <itkIdentityTransform.h>
+#include <itkCenteredTransformInitializer.h>
 #include <itkVersorRigid3DTransform.h>
 
 #include <itkLBFGSOptimizer.h>
-#include <itkRegularStepGradientDescentOptimizer.h>
+#include <itkRegularStepGradientDescentOptimizerv4.h>
 
 #include <itkMeanSquaresImageToImageMetric.h>
 
 #include <itkRegularStepGradientDescentOptimizer.h>
 
-#include <itkImageRegistrationMethod.h>
+#include <itkImageRegistrationMethodv4.h>
  
 #include <itkLinearInterpolateImageFunction.h>
 
@@ -64,7 +65,7 @@ int main( int argc, char* argv[] )
     ///////////////////////////////////////////////////////////////////////////
     // Define the image type
     const unsigned int in_dim = 3; 
-    typedef short signed PixelType;
+    typedef double PixelType;
     typedef itk::Image< PixelType, in_dim > InImType;
     typedef itk::ImageSeriesReader< InImType > SeriesReader;
     typedef itk::ImageFileReader< InImType > FileReader;
@@ -78,15 +79,20 @@ int main( int argc, char* argv[] )
     IdentityTransformType::Pointer identityTransform =
 	IdentityTransformType::New();
     // Rigid transform
-    typedef itk::VersorRigid3DTransform< double > RigidTransformType;
+    typedef itk::VersorRigid3DTransform< double > TransformType;
+        //Initialisation
+    typedef itk::CenteredTransformInitializer<
+	TransformType,
+	InImType,
+	InImType >  TransformInitializerType;
     // Define the optimizer
-    typedef itk::RegularStepGradientDescentOptimizer GDOptimizerType;
+    typedef itk::RegularStepGradientDescentOptimizerv4< double > OptimizerType;
 
     // Define the metrics
     // Mutual Information Metric
-    typedef itk::MattesMutualInformationImageToImageMetric <
+    typedef itk::MattesMutualInformationImageToImageMetricv4 <
 	InImType,
-	InImType > M2MetricType;
+	InImType > MetricType;
 
     // Interpolation function
     typedef itk:: LinearInterpolateImageFunction< 
@@ -94,9 +100,10 @@ int main( int argc, char* argv[] )
 	CoordinateRepType > InterpolatorType;
  
     // Registration type
-    typedef itk::ImageRegistrationMethod<
+    typedef itk::ImageRegistrationMethodv4<
 	InImType,
-	InImType >    RegistrationType;
+	InImType,
+	TransformType>    RegistrationType;
 
     ///////////////////////////////////////////////////////////////////////////
     // Open all the information about the DCE information
@@ -193,68 +200,76 @@ int main( int argc, char* argv[] )
 	}
 
 
-	///////////////////////////////////////////////////////////////////////
-	// Find the rigid transformation to apply
-	RigidTransformType::Pointer rigid_transform =
-	    RigidTransformType::New();
+	MetricType::Pointer         metric        = MetricType::New();
+	OptimizerType::Pointer      optimizer     = OptimizerType::New();
+	RegistrationType::Pointer   registration  = RegistrationType::New();
 
-	// Define the registration
-	M2MetricType::Pointer metric = M2MetricType::New();
-	GDOptimizerType::Pointer gd_optimizer = GDOptimizerType::New();
-	InterpolatorType::Pointer interpolator = InterpolatorType::New();
-	RegistrationType::Pointer registration = RegistrationType::New();
-	registration->SetMetric(metric);
-	registration->SetOptimizer(gd_optimizer);
-	registration->SetInterpolator(interpolator);
+	metric->SetNumberOfHistogramBins( 64 );
+	metric->SetUseMovingImageGradientFilter( false );
+	metric->SetUseFixedImageGradientFilter( false );
+	metric->SetUseFixedSampledPointSet( false );
+	
+	registration->SetMetric(        metric        );
+	registration->SetOptimizer( optimizer );
 
-	// Set-up the input images
+	TransformType::Pointer initialTransform = TransformType::New();
+
 	registration->SetFixedImage(dce_fixed_vol->GetOutput());
 	registration->SetMovingImage(dce_moving_vol->GetOutput());
 
-	// Initialise the transform
-	registration->SetFixedImageRegion(
-	    dce_fixed_vol->GetOutput()->GetLargestPossibleRegion());
-	registration->SetTransform(rigid_transform);
+	typedef itk::CenteredTransformInitializer<
+	    TransformType,
+	    InImType,
+	    InImType >  TransformInitializerType;
+	TransformInitializerType::Pointer initializer =
+	    TransformInitializerType::New();
 
-	// Initialize with default parameters
-	typedef RegistrationType::ParametersType ParametersType;
-	ParametersType init_params(rigid_transform->GetNumberOfParameters());
-	init_params[0] = 0.;
-	init_params[1] = 0.;
-	init_params[2] = 0.;
-	init_params[3] = 0.;
-	init_params[4] = 0.;
-	init_params[5] = 0.;
-	registration->SetInitialTransformParameters(init_params);
+	initializer->SetTransform(   initialTransform );
+	initializer->SetFixedImage(  dce_fixed_vol->GetOutput() );
+	initializer->SetMovingImage( dce_moving_vol->GetOutput() );
+	initializer->MomentsOn();
+	initializer->InitializeTransform();
 
-	//  Define optimizer normaliztion to compensate for different dynamic
-	// range of rotations and translations.
-	typedef GDOptimizerType::ScalesType OptimizerScalesType;
-	OptimizerScalesType optimizer_scales(
-	    rigid_transform->GetNumberOfParameters());
-	const double translation_scale = 1.0 / 1000.0;
-	optimizer_scales[0] = 1.0;
-	optimizer_scales[1] = 1.0;
-	optimizer_scales[2] = 1.0;
-	optimizer_scales[3] = translation_scale;
-	optimizer_scales[4] = translation_scale;
-	optimizer_scales[5] = translation_scale;
-	gd_optimizer->SetScales(optimizer_scales);
+	typedef TransformType::VersorType  VersorType;
+	typedef VersorType::VectorType     VectorType;
+	VersorType     rotation;
+	VectorType     axis;
+	axis[0] = 0.0;
+	axis[1] = 0.0;
+	axis[2] = 1.0;
+	const double angle = 0;
+	rotation.Set(  axis, angle  );
+	initialTransform->SetRotation( rotation );
 
-	gd_optimizer->SetMaximumStepLength(0.2000);
-	gd_optimizer->SetMinimumStepLength(0.0001);
-	gd_optimizer->SetNumberOfIterations(1000);
-	gd_optimizer->MaximizeOn();
+	registration->SetInitialTransform( initialTransform );
+	typedef OptimizerType::ScalesType       OptimizerScalesType;
+	OptimizerScalesType optimizerScales( initialTransform->GetNumberOfParameters() );
+	const double translationScale = 1.0 / 1000.0;
+	optimizerScales[0] = 1.0;
+	optimizerScales[1] = 1.0;
+	optimizerScales[2] = 1.0;
+	optimizerScales[3] = translationScale;
+	optimizerScales[4] = translationScale;
+	optimizerScales[5] = translationScale;
+	optimizer->SetScales( optimizerScales );
+	optimizer->SetNumberOfIterations( 200 );
+	optimizer->SetLearningRate( 0.2 );
+	optimizer->SetMinimumStepLength( 0.001 );
+	optimizer->SetReturnBestParametersAndValue(true);
+	// optimizer->MaximizeOn();
 
-	InImType::RegionType fixedImageRegion =
-	    dce_fixed_vol->GetOutput()->GetLargestPossibleRegion();
-	const unsigned int numberOfPixels =
-	    fixedImageRegion.GetNumberOfPixels();
-	const unsigned int numberOfSamples =
-	    static_cast< unsigned int >(numberOfPixels * 0.002); 
-	metric->SetNumberOfSpatialSamples(numberOfSamples);
-	metric->SetNumberOfThreads(8);
-	metric->SetNumberOfHistogramBins(30);
+	RegistrationType::ShrinkFactorsArrayType shrinkFactorsPerLevel;
+	shrinkFactorsPerLevel.SetSize( 1 );
+	shrinkFactorsPerLevel[0] = 1;
+
+	RegistrationType::SmoothingSigmasArrayType smoothingSigmasPerLevel;
+	smoothingSigmasPerLevel.SetSize( 1 );
+	smoothingSigmasPerLevel[0] = 0;
+
+	const unsigned int numberOfLevels = 1;
+	registration->SetNumberOfLevels( numberOfLevels );
+	registration->SetSmoothingSigmasPerLevel( smoothingSigmasPerLevel );
+	registration->SetShrinkFactorsPerLevel( shrinkFactorsPerLevel );
 
 	std::cout << "Starting Rigid Registration " << std::endl;
 	try
@@ -270,19 +285,155 @@ int main( int argc, char* argv[] )
 	    std::cerr << err << std::endl;
 	    return EXIT_FAILURE;
 	}
-	std::cout << "Rigid Registration completed" << std::endl;
 
-	GDOptimizerType::ParametersType finalParameters =
-	    registration->GetLastTransformParameters();
-	std::cout << "Last Transform Parameters" << std::endl;
-	std::cout << finalParameters << std::endl;
-	rigid_transform->SetParameters(finalParameters);
+	const TransformType::ParametersType finalParameters =
+	    registration->GetOutput()->Get()->GetParameters();
+
+	const double versorX              = finalParameters[0];
+	const double versorY              = finalParameters[1];
+	const double versorZ              = finalParameters[2];
+	const double finalTranslationX    = finalParameters[3];
+	const double finalTranslationY    = finalParameters[4];
+	const double finalTranslationZ    = finalParameters[5];
+	const unsigned int numberOfIterations = optimizer->GetCurrentIteration();
+	const double bestValue = optimizer->GetValue();
+
+	// Print out results
+	//
+	std::cout << std::endl << std::endl;
+	std::cout << "Result = " << std::endl;
+	std::cout << " versor X      = " << versorX  << std::endl;
+	std::cout << " versor Y      = " << versorY  << std::endl;
+	std::cout << " versor Z      = " << versorZ  << std::endl;
+	std::cout << " Translation X = " << finalTranslationX  << std::endl;
+	std::cout << " Translation Y = " << finalTranslationY  << std::endl;
+	std::cout << " Translation Z = " << finalTranslationZ  << std::endl;
+	std::cout << " Iterations    = " << numberOfIterations << std::endl;
+	std::cout << " Metric value  = " << bestValue << std::endl;
+
+	TransformType::Pointer finalTransform = TransformType::New();
+
+	finalTransform->SetFixedParameters( registration->GetOutput()->Get()->GetFixedParameters() );
+	finalTransform->SetParameters( finalParameters );
+
+	// Software Guide : BeginCodeSnippet
+	TransformType::MatrixType matrix = finalTransform->GetMatrix();
+	TransformType::OffsetType offset = finalTransform->GetOffset();
+	std::cout << "Matrix = " << std::endl << matrix << std::endl;
+	std::cout << "Offset = " << std::endl << offset << std::endl;
+	
+	// ///////////////////////////////////////////////////////////////////////
+	// RigidTransformType::Pointer initialTransform = RigidTransformType::New();
+	// TransformInitializerType::Pointer initializer =
+	//     TransformInitializerType::New();
+	// initializer->SetTransform(initialTransform);
+	// initializer->SetFixedImage(dce_fixed_vol->GetOutput());
+	// initializer->SetMovingImage(dce_moving_vol->GetOutput());
+	// initializer->MomentsOn();
+	// initializer->InitializeTransform();
+	// typedef RigidTransformType::VersorType VersorType;
+	// typedef VersorType::VectorType VectorType;
+	// VersorType rotation;
+	// VectorType axis;
+	// axis[0] = 0.0;
+	// axis[1] = 0.0;
+	// axis[2] = 1.0;
+	// const double angle = 0;
+	// rotation.Set(axis, angle);
+	// initialTransform->SetRotation(rotation);
+	// // Find the rigid transformation to apply
+	// RigidTransformType::Pointer rigid_transform =
+	//     RigidTransformType::New();
+
+	// // Define the registration
+	// M2MetricType::Pointer metric = M2MetricType::New();
+	// GDOptimizerType::Pointer gd_optimizer = GDOptimizerType::New();
+	InterpolatorType::Pointer interpolator = InterpolatorType::New();
+	// RegistrationType::Pointer registration = RegistrationType::New();
+	// registration->SetInitialTransformParameters( initialTransform->GetParameters() );
+	// registration->SetMetric(metric);
+	// registration->SetOptimizer(gd_optimizer);
+	// registration->SetInterpolator(interpolator);
+
+	// // Set-up the input images
+	// registration->SetFixedImage(dce_fixed_vol->GetOutput());
+	// registration->SetMovingImage(dce_moving_vol->GetOutput());
+
+	// // Initialise the transform
+	// registration->SetFixedImageRegion(
+	//     dce_fixed_vol->GetOutput()->GetLargestPossibleRegion());
+	// // registration->SetTransform(rigid_transform);
+
+	// // Initialize with default parameters
+	// // typedef RegistrationType::ParametersType ParametersType;
+	// // ParametersType init_params(rigid_transform->GetNumberOfParameters());
+	// // init_params[0] = 0.;
+	// // init_params[1] = 0.;
+	// // init_params[2] = 0.;
+	// // init_params[3] = 0.;
+	// // init_params[4] = 0.;
+	// // init_params[5] = 0.;
+	// // registration->SetInitialTransformParameters(init_params);
+
+	// //  Define optimizer normaliztion to compensate for different dynamic
+	// // range of rotations and translations.
+	// typedef GDOptimizerType::ScalesType OptimizerScalesType;
+	// OptimizerScalesType optimizer_scales(
+	//     rigid_transform->GetNumberOfParameters());
+	// const double translation_scale = 1.0 / 1000.0;
+	// optimizer_scales[0] = 1.0;
+	// optimizer_scales[1] = 1.0;
+	// optimizer_scales[2] = 1.0;
+	// optimizer_scales[3] = translation_scale;
+	// optimizer_scales[4] = translation_scale;
+	// optimizer_scales[5] = translation_scale;
+	// gd_optimizer->SetScales(optimizer_scales);
+
+	// gd_optimizer->SetMaximumStepLength(0.2000);
+	// gd_optimizer->SetMinimumStepLength(0.0001);
+	// gd_optimizer->SetNumberOfIterations(1000);
+	// gd_optimizer->MaximizeOn();
+
+	// InImType::RegionType fixedImageRegion =
+	//     dce_fixed_vol->GetOutput()->GetLargestPossibleRegion();
+	// const unsigned int numberOfPixels =
+	//     fixedImageRegion.GetNumberOfPixels();
+	// const unsigned int numberOfSamples =
+	//     static_cast< unsigned int >(numberOfPixels * 0.006); 
+	// metric->SetNumberOfSpatialSamples(numberOfSamples);
+	// metric->SetNumberOfThreads(8);
+	// metric->SetNumberOfHistogramBins(60);
+
+	// std::cout << "Starting Rigid Registration " << std::endl;
+	// try
+	// {
+	//     registration->Update();
+	//     std::cout << "Optimizer stop condition = "
+	// 	      << registration->GetOptimizer()->GetStopConditionDescription()
+	// 	      << std::endl;
+	// }
+	// catch(itk::ExceptionObject & err)
+	// {
+	//     std::cerr << "ExceptionObject caught !" << std::endl;
+	//     std::cerr << err << std::endl;
+	//     return EXIT_FAILURE;
+	// }
+	// std::cout << "Rigid Registration completed" << std::endl;
+
+	// GDOptimizerType::ParametersType finalParameters =
+	//     registration->GetLastTransformParameters();
+	// std::cout << "Last Transform Parameters" << std::endl;
+	// std::cout << finalParameters << std::endl;
+	// // rigid_transform->SetParameters(finalParameters);
+
+	// rigid_transform->SetFixedParameters( registration->GetOutput()->Get()->GetFixedParameters() );
+	// rigid_transform->SetParameters( finalParameters );
 
 	// Resample the data with the transform found previously
 	typedef itk::ResampleImageFilter< InImType,
 					  InImType > ResampleFilterType;
 	ResampleFilterType::Pointer resample = ResampleFilterType::New();
-	resample->SetTransform(rigid_transform);
+	resample->SetTransform(finalTransform);
 	resample->SetInput(dce_moving_vol->GetOutput());
 	resample->SetSize(
 	    dce_moving_vol->GetOutput()->GetLargestPossibleRegion().GetSize());
