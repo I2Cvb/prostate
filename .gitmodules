@@ -16,3 +16,6 @@
 [submodule "pipeline/lemaitre-2016-nov"]
 	path = pipeline/lemaitre-2016-nov
 	url = https://github.com/I2Cvb/lemaitre-2016-nov.git
+[submodule "pipeline/mp-mri-prostate"]
+	path = pipeline/mp-mri-prostate
+	url = https://github.com/I2Cvb/mp-mri-prostate.git
