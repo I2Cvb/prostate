@@ -7,6 +7,7 @@ from scipy.optimize import curve_fit
 
 from protoclass.data_management import RDAModality
 from protoclass.preprocessing import MRSIPhaseCorrection
+from protoclass.preprocessing import MRSIFrequencyCorrection
 
 from fdasrsf import srsf_align
 
@@ -95,12 +96,15 @@ rda_mod.read_data_from_path(path_mrsi)
 phase_correction = MRSIPhaseCorrection(rda_mod)
 rda_mod = phase_correction.transform(rda_mod)
 
+freq_correction = MRSIFrequencyCorrection(rda_mod)
+rda_mod = freq_correction.fit(rda_mod).transform(rda_mod)
 
-# Process all the different spectra
-all_spectra = np.reshape(rda_mod.data_, (rda_mod.data_.shape[0],
-                                         rda_mod.data_.shape[1] *
-                                         rda_mod.data_.shape[2] *
-                                         rda_mod.data_.shape[3])).T
-popts = Parallel(n_jobs=-1)(delayed(_fit_voigt_water)(rda_mod.bandwidth_ppm,
-                                                      spectra)
-                            for spectra in all_spectra)
+
+# # Process all the different spectra
+# all_spectra = np.reshape(rda_mod.data_, (rda_mod.data_.shape[0],
+#                                          rda_mod.data_.shape[1] *
+#                                          rda_mod.data_.shape[2] *
+#                                          rda_mod.data_.shape[3])).T
+# popts = Parallel(n_jobs=-1)(delayed(_fit_voigt_water)(rda_mod.bandwidth_ppm,
+#                                                       spectra)
+#                             for spectra in all_spectra)
