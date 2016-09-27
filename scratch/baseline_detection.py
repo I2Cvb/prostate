@@ -15,6 +15,7 @@ from statsmodels.nonparametric.smoothers_lowess import lowess
 from protoclass.data_management import RDAModality
 from protoclass.preprocessing import MRSIPhaseCorrection
 from protoclass.preprocessing import MRSIFrequencyCorrection
+from protoclass.preprocessing import MRSIBaselineCorrection
 
 from fdasrsf import srsf_align
 
@@ -179,20 +180,24 @@ def _find_baseline_bxr(spectrum, noise_std=None, A=None, B=None,
 rda_mod = RDAModality(1250.)
 rda_mod.read_data_from_path(path_mrsi)
 
-# phase_correction = MRSIPhaseCorrection(rda_mod)
-# rda_mod = phase_correction.transform(rda_mod)
+phase_correction = MRSIPhaseCorrection(rda_mod)
+rda_mod = phase_correction.transform(rda_mod)
 
 freq_correction = MRSIFrequencyCorrection(rda_mod)
 rda_mod = freq_correction.fit(rda_mod).transform(rda_mod)
 
-# Find the index of interest
-x = 9
-y = 5
-z = 5
-ppm_limits = (2.2, 3.5)
-idx_int = np.flatnonzero(np.bitwise_and(
-    rda_mod.bandwidth_ppm[:, y, x, z] > ppm_limits[0],
-    rda_mod.bandwidth_ppm[:, y, x, z] < ppm_limits[1]))
+baseline_correction = MRSIBaselineCorrection(rda_mod)
+rda_mod = baseline_correction.fit(rda_mod).transform(rda_mod)
 
-baseline = _find_baseline_bxr(np.real(rda_mod.data_[idx_int, y, x, z]),
-                              B_star=10e2, A_star=5*10e-6)
+# # Find the index of interest
+# x = 9
+# y = 5
+# z = 5
+# ppm_limits = (2.2, 3.5)
+# # idx_int = np.flatnonzero(np.bitwise_and(
+# #     rda_mod.bandwidth_ppm[:, y, x, z] > ppm_limits[0],
+# #     rda_mod.bandwidth_ppm[:, y, x, z] < ppm_limits[1]))
+# idx_int = range(512)
+
+# baseline = _find_baseline_bxr(np.real(rda_mod.data_[idx_int, y, x, z]),
+#                               B_star=10, A_star=5*10e-7)
