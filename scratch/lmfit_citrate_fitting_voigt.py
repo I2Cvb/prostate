@@ -20,7 +20,6 @@ from protoclass.data_management import RDAModality
 from protoclass.preprocessing import MRSIPhaseCorrection
 from protoclass.preprocessing import MRSIFrequencyCorrection
 from protoclass.preprocessing import MRSIBaselineCorrection
-from protoclass.preprocessing import LNormNormalization
 
 def _voigt_profile(x, alpha, mu, sigma, gamma):
     """Private function to fit a Voigt profile.
@@ -83,10 +82,14 @@ def citrate_model(params, ppm):
     sigma1 = params['sigma1']
     sigma2 = params['sigma2']
     sigma3 = params['sigma3']
+    gamma1 = params['gamma1']
+    gamma2 = params['gamma2']
+    gamma3 = params['gamma3']
 
-    model = _gaussian_profile(ppm, alpha1, mu1, sigma1)
-    model += _gaussian_profile(ppm, alpha2, mu1 + delta2, sigma2)
-    model += _gaussian_profile(ppm, alpha3, mu1 - delta3, sigma3)
+
+    model = _voigt_profile(ppm, alpha1, mu1, sigma1, gamma1)
+    model += _voigt_profile(ppm, alpha2, mu1 + delta2, sigma2, gamma2)
+    model += _voigt_profile(ppm, alpha3, mu1 - delta3, sigma3, gamma3)
 
     return model
 
@@ -166,10 +169,14 @@ def residual(params, ppm, data=None):
     sigma1 = np.abs(params['sigma1'])
     sigma2 = np.abs(params['sigma2'])
     sigma3 = np.abs(params['sigma3'])
+    gamma1 = np.abs(params['gamma1'])
+    gamma2 = np.abs(params['gamma2'])
+    gamma3 = np.abs(params['gamma3'])
 
-    gauss_1 = _gaussian_profile(ppm, alpha1, mu1, sigma1)
-    gauss_2 = _gaussian_profile(ppm, alpha2, mu1 + delta2, sigma2)
-    gauss_3 = _gaussian_profile(ppm, alpha3, mu1 - delta3, sigma3)
+
+    gauss_1 = _voigt_profile(ppm, alpha1, mu1, sigma1, gamma1)
+    gauss_2 = _voigt_profile(ppm, alpha2, mu1 + delta2, sigma2, gamma2)
+    gauss_3 = _voigt_profile(ppm, alpha3, mu1 - delta3, sigma3, gamma3)
 
     # Compute the window
     mask = np.zeros(ppm.shape)
@@ -212,8 +219,8 @@ def _citrate_fitting(ppm, spectrum):
     # Define the default parameters
     # Define their bounds
     mu_bounds = (2.54, 2.68)
-    delta_2_bounds = (.10, .16)
-    delta_3_bounds = (.10, .16)
+    delta_2_bounds = (.05, .16)
+    delta_3_bounds = (.05, .16)
 
     # Define the default shifts
     ppm_cit = np.linspace(mu_bounds[0], mu_bounds[1], num=1000)
@@ -227,15 +234,15 @@ def _citrate_fitting(ppm, spectrum):
 
     # Define the default amplitude
     alpha_1_dft = (f(mu_dft) /
-                   _gaussian_profile(0., 1., 0., .01))
+                   _voigt_profile(0., 1., 0., .001, .001))
     alpha_2_dft = (f(mu_dft + delta_2_dft) /
-                   _gaussian_profile(0., 1., 0., .01))
+                   _voigt_profile(0., 1., 0., .001, .001))
     alpha_3_dft = (f(mu_dft - delta_3_dft) /
-                   _gaussian_profile(0., 1., 0., .01))
+                   _voigt_profile(0., 1., 0., .001, .001))
     # Create the vector for the default parameters
-    popt_default = np.array([alpha_1_dft, mu_dft, .01,
-                             alpha_2_dft, delta_2_dft, .01,
-                             alpha_3_dft, delta_3_dft, .01])
+    popt_default = np.array([alpha_1_dft, mu_dft, .001, .001,
+                             alpha_2_dft, delta_2_dft, .001, .001,
+                             alpha_3_dft, delta_3_dft, .001, .001])
     # Define the list of parameters
     params = Parameters()
     params.add('alpha1', value=alpha_1_dft, min=0.1, max=100)
@@ -246,9 +253,13 @@ def _citrate_fitting(ppm, spectrum):
                max=delta_2_bounds[1])
     params.add('delta3', value=delta_3_dft, min=delta_3_bounds[0],
                max=delta_3_bounds[1])
-    params.add('sigma1', value=.01, min=.01, max=0.1)
-    params.add('sigma2', value=.01, min=.01, max=0.1)
-    params.add('sigma3', value=.01, min=.01, max=0.1)
+    params.add('sigma1', value=.003, min=.001, max=0.1)
+    params.add('sigma2', value=.003, min=.001, max=0.1)
+    params.add('sigma3', value=.003, min=.001, max=0.1)
+    params.add('gamma1', value=.003, min=.001, max=0.1)
+    params.add('gamma2', value=.003, min=.001, max=0.1)
+    params.add('gamma3', value=.003, min=.001, max=0.1)
+
 
     data = f(ppm_interp)
     res_robust = minimize(residual, params, args=(ppm_interp, ),
@@ -274,8 +285,8 @@ def _metabolite_fitting(ppm, spectrum):
     # Define the default parameters
     # Define their bounds
     mu_bounds = (2.54, 2.68)
-    delta_2_bounds = (.06, .16)
-    delta_3_bounds = (.06, .16)
+    delta_2_bounds = (.10, .16)
+    delta_3_bounds = (.10, .16)
     # Define the default shifts
     ppm_cit = np.linspace(mu_bounds[0], mu_bounds[1], num=1000)
     mu_dft = ppm_cit[np.argmax(f(ppm_cit))]
@@ -283,8 +294,8 @@ def _metabolite_fitting(ppm, spectrum):
     mu_bounds = (mu_dft - 0.04, mu_dft + 0.04)
     # Redefine the limit of ppm to use for the fitting
     ppm_interp = np.linspace(mu_dft - .20, mu_dft + 0.20, num=5000)
-    delta_2_dft = .1
-    delta_3_dft = .1
+    delta_2_dft = .14
+    delta_3_dft = .14
 
     # Define the default amplitude
     alpha_1_dft = (f(mu_dft) /
@@ -308,8 +319,8 @@ def _metabolite_fitting(ppm, spectrum):
     params.add('delta3', value=delta_3_dft, min=delta_3_bounds[0],
                max=delta_3_bounds[1])
     params.add('sigma1', value=.01, min=.01, max=0.1)
-    params.add('sigma2', value=.01, min=.01, max=0.03)
-    params.add('sigma3', value=.01, min=.01, max=0.03)
+    params.add('sigma2', value=.01, min=.01, max=0.05)
+    params.add('sigma3', value=.01, min=.01, max=0.05)
 
     data = f(ppm_interp)
     res_citrate = minimize(residual, params, args=(ppm_interp, ),
@@ -396,7 +407,7 @@ def _metabolite_fitting(ppm, spectrum):
     return res_citrate, res_choline
 
 
-# path_mrsi = '/data/prostate/experiments/Patient 387/MRSI/CSI_SE_3D_140ms_16c.rda'
+# path_mrsi = '/data/prostate/experiments/Patient 383/MRSI/CSI_SE_3D_140ms_16c.rda'
 
 # rda_mod = RDAModality(1250.)
 # rda_mod.read_data_from_path(path_mrsi)
@@ -409,9 +420,6 @@ def _metabolite_fitting(ppm, spectrum):
 
 # baseline_correction = MRSIBaselineCorrection(rda_mod)
 # rda_mod = baseline_correction.fit(rda_mod).transform(rda_mod)
-
-# normalization = LNormNormalization(rda_mod)
-# rda_mod = normalization.fit(rda_mod).normalize(rda_mod)
 
 # out = _citrate_fitting(rda_mod.bandwidth_ppm[:, 5, 9, 5],
 #                        np.real(rda_mod.data_[:, 5, 9, 5]))
