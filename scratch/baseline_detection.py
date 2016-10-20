@@ -1,6 +1,12 @@
 from __future__ import division
 
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+#sns.set(style='ticks', palette='Set2')
+current_palette = sns.color_palette()
 
 from joblib import Parallel, delayed
 
@@ -18,8 +24,6 @@ from protoclass.preprocessing import MRSIFrequencyCorrection
 from protoclass.preprocessing import MRSIBaselineCorrection
 
 from fdasrsf import srsf_align
-
-import matplotlib.pyplot as plt
 
 path_mrsi = '/data/prostate/experiments/Patient 1036/MRSI/CSI_SE_3D_140ms_16c.rda'
 
@@ -186,18 +190,36 @@ rda_mod = phase_correction.transform(rda_mod)
 freq_correction = MRSIFrequencyCorrection(rda_mod)
 rda_mod = freq_correction.fit(rda_mod).transform(rda_mod)
 
-baseline_correction = MRSIBaselineCorrection(rda_mod)
-rda_mod = baseline_correction.fit(rda_mod).transform(rda_mod)
+# baseline_correction = MRSIBaselineCorrection(rda_mod)
+# rda_mod = baseline_correction.fit(rda_mod).transform(rda_mod)
 
-# # Find the index of interest
-# x = 9
-# y = 5
-# z = 5
-# ppm_limits = (2.2, 3.5)
-# # idx_int = np.flatnonzero(np.bitwise_and(
-# #     rda_mod.bandwidth_ppm[:, y, x, z] > ppm_limits[0],
-# #     rda_mod.bandwidth_ppm[:, y, x, z] < ppm_limits[1]))
-# idx_int = range(512)
+# Find the index of interest
+x = 9
+y = 5
+z = 5
+ppm_limits = (2.2, 3.5)
+idx_int = np.flatnonzero(np.bitwise_and(
+    rda_mod.bandwidth_ppm[:, y, x, z] > ppm_limits[0],
+    rda_mod.bandwidth_ppm[:, y, x, z] < ppm_limits[1]))
 
-# baseline = _find_baseline_bxr(np.real(rda_mod.data_[idx_int, y, x, z]),
-#                               B_star=10, A_star=5*10e-7)
+baseline = _find_baseline_bxr(np.real(rda_mod.data_[idx_int, y, x, z]),
+                              B_star=100, A_star=5*10e-6)
+
+
+plt.plot(rda_mod.bandwidth_ppm[idx_int, y, x, z], np.real(rda_mod.data_[idx_int, y, x, z]),
+         label='MRSI signal')
+plt.plot(rda_mod.bandwidth_ppm[idx_int, y, x, z], baseline,
+         label='baseline')
+
+plt.gca().invert_xaxis()
+
+# plt.xlim([0.0, 1.0])
+# plt.ylim([0.0, 1.0])
+
+plt.xlabel('ppm')
+plt.ylabel('Amplitudes')
+plt.legend()
+
+# Save the plot
+plt.savefig('baseline_mrsi.pdf',
+            bbox_inches='tight')

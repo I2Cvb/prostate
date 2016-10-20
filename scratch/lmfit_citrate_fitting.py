@@ -1,7 +1,13 @@
 from __future__ import division
 
 import numpy as np
+
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
+import seaborn as sns
+#sns.set(style='ticks', palette='Set2')
+current_palette = sns.color_palette()
 
 from joblib import Parallel, delayed
 
@@ -238,9 +244,9 @@ def _citrate_fitting(ppm, spectrum):
                              alpha_3_dft, delta_3_dft, .01])
     # Define the list of parameters
     params = Parameters()
-    params.add('alpha1', value=alpha_1_dft, min=0.1, max=100)
-    params.add('alpha2', value=alpha_2_dft, min=0.1, max=100)
-    params.add('alpha3', value=alpha_3_dft, min=0.1, max=100)
+    params.add('alpha1', value=alpha_1_dft, min=0, max=100)
+    params.add('alpha2', value=alpha_2_dft, min=0, max=100)
+    params.add('alpha3', value=alpha_3_dft, min=0, max=100)
     params.add('mu1', value=mu_dft, min=mu_bounds[0], max=mu_bounds[1])
     params.add('delta2', value=delta_2_dft, min=delta_2_bounds[0],
                max=delta_2_bounds[1])
@@ -358,7 +364,7 @@ def _metabolite_fitting(ppm, spectrum):
     #                _gaussian_profile(0., 1., 0., .01))
 
     params = Parameters()
-    params.add('alpha4', value=alpha_4_dft, min=0.01, max=100)
+    params.add('alpha4', value=alpha_4_dft, min=0.0, max=100)
     params.add('mu1', value=mu_dft, vary=False)
     params.add('delta4', value=delta_4_dft, vary=False)
     #params.add('alpha6', value=alpha_6_dft, min=0.01, max=100)
@@ -396,22 +402,54 @@ def _metabolite_fitting(ppm, spectrum):
     return res_citrate, res_choline
 
 
-# path_mrsi = '/data/prostate/experiments/Patient 387/MRSI/CSI_SE_3D_140ms_16c.rda'
+path_mrsi = '/data/prostate/experiments/Patient 383/MRSI/CSI_SE_3D_140ms_16c.rda'
 
-# rda_mod = RDAModality(1250.)
-# rda_mod.read_data_from_path(path_mrsi)
+rda_mod = RDAModality(1250.)
+rda_mod.read_data_from_path(path_mrsi)
 
-# phase_correction = MRSIPhaseCorrection(rda_mod)
-# rda_mod = phase_correction.transform(rda_mod)
+phase_correction = MRSIPhaseCorrection(rda_mod)
+rda_mod = phase_correction.transform(rda_mod)
 
-# freq_correction = MRSIFrequencyCorrection(rda_mod)
-# rda_mod = freq_correction.fit(rda_mod).transform(rda_mod)
+freq_correction = MRSIFrequencyCorrection(rda_mod)
+rda_mod = freq_correction.fit(rda_mod).transform(rda_mod)
 
-# baseline_correction = MRSIBaselineCorrection(rda_mod)
-# rda_mod = baseline_correction.fit(rda_mod).transform(rda_mod)
+baseline_correction = MRSIBaselineCorrection(rda_mod)
+rda_mod = baseline_correction.fit(rda_mod).transform(rda_mod)
 
-# normalization = LNormNormalization(rda_mod)
-# rda_mod = normalization.fit(rda_mod).normalize(rda_mod)
+normalization = LNormNormalization(rda_mod)
+rda_mod = normalization.fit(rda_mod).normalize(rda_mod)
 
-# out = _citrate_fitting(rda_mod.bandwidth_ppm[:, 5, 9, 5],
-#                        np.real(rda_mod.data_[:, 5, 9, 5]))
+out = _citrate_fitting(rda_mod.bandwidth_ppm[:, 5, 9, 5],
+                       np.real(rda_mod.data_[:, 5, 9, 5]))
+
+
+x=6;y=6;z=8;
+out = _citrate_fitting(rda_mod.bandwidth_ppm[:, y, x, z],
+                       np.real(rda_mod.data_[:, y, x, z]))
+
+ppm = np.linspace(1, 9, num=10000)
+
+signal = citrate_model(out.params, ppm)
+f = interp1d(rda_mod.bandwidth_ppm[:, y, x, z], np.real(rda_mod.data_[:, y, x, z]), kind='cubic')
+
+plt.figure()
+plt.plot(ppm, f(ppm), label='MRSI')
+plt.plot(ppm, signal, label='Citrate fitted')
+out1, out2 = _metabolite_fitting(rda_mod.bandwidth_ppm[:, y, x, z],
+                                 np.real(rda_mod.data_[:, y, x, z]))
+
+signal = choline_model(out2.params, ppm)
+
+plt.plot(ppm, signal, label='Choline fitted')
+
+plt.gca().invert_xaxis()
+
+plt.xlim([2.2, 3.4])
+plt.ylim([0.0, .05])
+
+plt.xlabel('ppm')
+plt.ylabel('Amplitudes')
+plt.legend()
+
+plt.savefig('meta_fitting_wrong.pdf',
+            bbox_inches='tight')

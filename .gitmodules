@@ -19,3 +19,6 @@
 [submodule "pipeline/mp-mri-prostate"]
 	path = pipeline/mp-mri-prostate
 	url = https://github.com/I2Cvb/mp-mri-prostate.git
+[submodule "publications/phd_thesis"]
+	path = publications/phd_thesis
+	url = https://github.com/glemaitre/phd_thesis.git
